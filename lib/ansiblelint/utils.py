@@ -24,7 +24,7 @@ import os
 
 import ansible.constants as C
 from ansible.module_utils.splitter import split_args
-
+from ansible.parsing.mod_args import ModuleArgsParser
 import yaml
 from yaml.composer import Composer
 from yaml.constructor import Constructor
@@ -217,43 +217,35 @@ def rolename(filepath):
     return role
 
 
-def _kv_to_dict(v):
-    (command, args, kwargs) = tokenize(v)
-    return (dict(module=command, module_arguments=args, **kwargs))
-
-
 def normalize_task(task):
     '''Ensures tasks have an action key and strings are converted to python objects'''
 
     result = dict()
-    for (k, v) in task.items():
-        if k in VALID_KEYS or k.startswith('with_'):
-            if k == 'local_action' or k == 'action':
-                if not isinstance(v, dict):
-                    v = _kv_to_dict(v)
-                v['module_arguments'] = v.get('module_arguments', list())
-                result['action'] = v
-            else:
-                result[k] = v
-        else:
-            if isinstance(v, basestring):
-                v = _kv_to_dict(k + ' ' + v)
-            elif not v:
-                v = dict(module=k)
-            else:
-                if isinstance(v, dict):
-                    v.update(dict(module=k))
-                else:
-                    if k == '__line__':
-                        # Keep the line number stored
-                        result[k] = v
-                        continue
+    mod_arg_parser = ModuleArgsParser(task)
+    action, arguments, result['delegate_to'] = mod_arg_parser.parse()
 
-                    else:
-                        # Should not get here!
-                        raise RuntimeError("Was not expecting value %s of type %s for key %s\nTask: %s" % (str(v), type(v), k), str(task))  # noqa
-            v['module_arguments'] = v.get('module_arguments', list())
-            result['action'] = v
+    # denormalize shell -> command conversion
+    if '_use_shell' in arguments:
+        action = 'shell'
+        del(arguments['_use_shell'])
+
+    for (k, v) in list(task.items()):
+        if k in ('action', 'local_action', 'args', 'delegate_to') or k == action:
+            # we don't want to re-assign these values, which were
+            # determined by the ModuleArgsParser() above
+            continue
+        else:
+            result[k] = v
+
+    result['action'] = dict(module=action)
+
+    if '_raw_params' in arguments:
+        result['action']['module_arguments'] = arguments['_raw_params'].split()
+        del(arguments['_raw_params'])
+    else:
+        result['action']['module_arguments'] = list()
+    result['action'].update(arguments)
+
     return result
 
 
@@ -262,8 +254,8 @@ def task_to_str(task):
     if name:
         return name
     action = task.get("action")
-    args = " ".join(["k=v" for (k, v) in action.items() if k != "module_arguments"] +
-                    action.get("module_arguments"))
+    kwargs = ["%s=%s" % (k, v) for (k, v) in action.items() if k != "module_arguments" and k != "module"]
+    args = " ".join(kwargs + action.get("module_arguments"))
     return "{0} {1}".format(action["module"], args)
 
 
