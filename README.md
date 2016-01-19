@@ -22,7 +22,7 @@ Usage
 -----
 
 ```
-Usage: ansible-lint playbook.yml
+Usage: ansible-lint playbook.yml|roledirectory ...
 
 Options:
   --version             show program's version number and exit
@@ -121,30 +121,33 @@ ansible-lint on them works:
 
 ```
 ansible-lint examples/example.yml
-[ANSIBLE0006] git used in place of git module
-examples/example.yml:31
-    action: command git clone blah
+[ANSIBLE0004] Git checkouts must contain explicit version
+examples/example.yml:18
+Task/Handler: git check
+
+[ANSIBLE0004] Git checkouts must contain explicit version
+examples/example.yml:21
+Task/Handler: git check 2
+
+[ANSIBLE0004] Git checkouts must contain explicit version
+examples/example.yml:33
+Task/Handler: using git module
 
 [ANSIBLE0002] Trailing whitespace
-examples/example.yml:19
-    action: do nothing
+examples/example.yml:16
+    action: command echo do nothing   
 
-[ANSIBLE0003] Mismatched { and }
-examples/example.yml:13
-    action: debug oops a missing {{bracket}
+[ANSIBLE0002] Trailing whitespace
+examples/example.yml:38
+    with_items: 
 
-[ANSIBLE0004] Checkouts must contain explicit version
-examples/example.yml:22
-    action: git a=b c=d
+[ANSIBLE0006] git used in place of git module
+examples/example.yml:27
+Task/Handler: executing git through command
 
-[ANSIBLE0004] Checkouts must contain explicit version
-examples/example.yml:25
-    action: git version=HEAD c=d
-
-[ANSIBLE0004] Checkouts must contain explicit version
-examples/example.yml:34
-    action: git command
-
+[ANSIBLE0006] git used in place of git module
+examples/example.yml:30
+Task/Handler: executing git through command
 ```
 
 If playbooks include other playbooks, or tasks, or handlers or roles, these
@@ -160,6 +163,11 @@ $ bin/ansible-lint examples/include.yml
 /Users/will/src/ansible-lint/examples/roles/bobbins/tasks/main.yml:3
 action: git a=b c=d
 ```
+
+As of version 2.4.0, ansible-lint now works just on roles (this is useful 
+for CI of roles)
+
+
 
 Contributing
 ============
